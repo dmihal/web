@@ -388,6 +388,21 @@ $(document).ready(function() {
           approvalAddress = data.contract_address;
         }
 
+        function sendDonation(transactionHash) {
+          if (data.num_periods == 1) {
+            // call splitter after approval
+            var to_address = data.match_direction == '+' ? data.admin_address : gitcoinDonationAddress;
+
+            splitPayment(accounts[0], to_address, gitcoinDonationAddress, Number(grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}), Number(gitcoin_grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}));
+          } else {
+            if (data.contract_version == 0 && gitcoin_grant_amount > 0) {
+              donationPayment(deployedToken, accounts[0], Number(gitcoin_grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}));
+            }
+
+            subscribeToGrant(transactionHash);
+          }
+        }
+
         // ERC20
         deployedToken.methods.balanceOf(
           accounts[0]
@@ -397,6 +412,14 @@ $(document).ready(function() {
           } else {
             set_form_disabled(true);
             indicateMetamaskPopup();
+
+            deployedToken.methods.allowance(accounts[0], approvalAddress).call(function(allowance) {
+              if (realApproval >= Number(allowance)) {
+                sendDonation();
+                return;
+              }
+            });
+
             deployedToken.methods.approve(
               approvalAddress,
               web3.utils.toTwosComplement(approvalSTR)
@@ -413,17 +436,7 @@ $(document).ready(function() {
             }).on('transactionHash', function(transactionHash) {
               indicateMetamaskPopup(true);
               $('#sub_new_approve_tx_id').val(transactionHash);
-              if (data.num_periods == 1) {
-                // call splitter after approval
-                var to_address = data.match_direction == '+' ? data.admin_address : gitcoinDonationAddress;
-
-                splitPayment(accounts[0], to_address, gitcoinDonationAddress, Number(grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}), Number(gitcoin_grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}));
-              } else {
-                if (data.contract_version == 0 && gitcoin_grant_amount > 0) {
-                  donationPayment(deployedToken, accounts[0], Number(gitcoin_grant_amount * Math.pow(10, decimals)).toLocaleString('fullwide', {useGrouping: false}));
-                }
-                subscribeToGrant(transactionHash);
-              }
+              sendDonation(transactionHash);
             }).on('confirmation', function(confirmationNumber, receipt) {
               waitforData(() => {
                 document.suppress_loading_leave_code = true;
